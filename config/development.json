@@ -1,5 +1,5 @@
 {
-  "db": "localhost/oauth-example",
+  "db": "localhost/ember-talk",
   "emailer": {
     "from": "support@papers.example.com"
   },

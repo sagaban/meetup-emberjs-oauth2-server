@@ -10,13 +10,30 @@ var User = models.User;
 
 app.set('env', process.env.NODE_ENV || 'development');
 app.set('port', process.env.PORT || 3000);
-app.set('views', path.join(__dirname, 'views'));
-app.set('view engine', 'jade');
+// app.set('views', path.join(__dirname, 'views'));
+// app.set('view engine', 'jade');
+
+app.use(function (req, res, next) {
+  //TODO: Move this harcoded code
+  res.header('Access-Control-Allow-Origin', 'http://localhost:4200');
+  res.header('Access-Control-Allow-Headers',
+    'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Methods', 'POST, GET, PUT, DELETE, OPTIONS');
+
+  next();
+});
+
 app.use(express.cookieParser('ncie0fnft6wjfmgtjz8i'));
 app.use(express.cookieSession());
 
 app.locals.title = 'OAuth Example';
 app.locals.pretty = true;
+
+//Remove api from request
+app.use(function(req, res, next) {
+  req.url = req.url.replace('/api/','/');
+  next();
+});
 
 app.configure('development', 'production', function() {
   app.use(express.logger('dev'));
@@ -88,7 +105,7 @@ app.get('/secret', middleware.requiresUser, function(req, res) {
 
 app.use(app.oauth.errorHandler());
 
-app.post('/v1/users', routes.users.create);
+app.post('/users', routes.users.create);
 app.get('/account', middleware.requiresUser, routes.users.show);
 app.post('/session', routes.session.create);
 app.get('/session', routes.session.show);

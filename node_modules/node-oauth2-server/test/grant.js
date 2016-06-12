@@ -15,6 +15,7 @@
  */
 
 var express = require('express'),
+  bodyParser = require('body-parser'),
   request = require('supertest'),
   should = require('should');
 
@@ -28,7 +29,7 @@ var bootstrap = function (oauthConfig) {
     });
 
   app.set('json spaces', 0);
-  app.use(express.bodyParser());
+  app.use(bodyParser());
 
   app.all('/oauth/token', oauth.grant());
 
@@ -92,7 +93,6 @@ describe('Grant', function() {
         .post('/oauth/token')
         .set('Content-Type', 'application/x-www-form-urlencoded')
         .send({ grant_type: 'password' })
-        .expect('WWW-Authenticate', 'Basic realm="Service"')
         .expect(400, /invalid or missing client_id parameter/i, done);
     });
 
@@ -107,7 +107,6 @@ describe('Grant', function() {
         .post('/oauth/token')
         .set('Content-Type', 'application/x-www-form-urlencoded')
         .send({ grant_type: 'password', client_id: 'thom' })
-        .expect('WWW-Authenticate', 'Basic realm="Service"')
         .expect(400, /invalid or missing client_id parameter/i, done);
     });
 
@@ -118,7 +117,6 @@ describe('Grant', function() {
         .post('/oauth/token')
         .set('Content-Type', 'application/x-www-form-urlencoded')
         .send({ grant_type: 'password', client_id: 'thom' })
-        .expect('WWW-Authenticate', 'Basic realm="Service"')
         .expect(400, /missing client_secret parameter/i, done);
     });
 
@@ -157,7 +155,6 @@ describe('Grant', function() {
         .post('/oauth/token')
         .send('grant_type=password&username=test&password=invalid')
         .set('Authorization', 'Basic dGhvbTpuaWdodHdvcmxk')
-        .expect('WWW-Authenticate', 'Basic realm="Service"')
         .expect(400, done);
     });
 
@@ -197,7 +194,6 @@ describe('Grant', function() {
         .post('/oauth/token')
         .set('Content-Type', 'application/x-www-form-urlencoded')
         .send({ grant_type: 'password', client_id: 'thom', client_secret: 'nightworld' })
-        .expect('WWW-Authenticate', 'Basic realm="Service"')
         .expect(400, /client credentials are invalid/i, done);
     });
   });
@@ -220,7 +216,6 @@ describe('Grant', function() {
         .post('/oauth/token')
         .set('Content-Type', 'application/x-www-form-urlencoded')
         .send({ grant_type: 'password', client_id: 'thom', client_secret: 'nightworld' })
-        .expect('WWW-Authenticate', 'Basic realm="Service"')
         .expect(400, /grant type is unauthorised for this client_id/i, done);
     });
   });
@@ -253,7 +248,41 @@ describe('Grant', function() {
         .post('/oauth/token')
         .set('Content-Type', 'application/x-www-form-urlencoded')
         .send(validBody)
-        .expect(/thommy/, 200, done);
+        .expect(200, /thommy/, done);
+
+    });
+
+    it('should include client and user in request', function (done) {
+      var app = bootstrap({
+        model: {
+          getClient: function (id, secret, callback) {
+            callback(false, { clientId: 'thom', clientSecret: 'nightworld' });
+          },
+          grantTypeAllowed: function (clientId, grantType, callback) {
+            callback(false, true);
+          },
+          getUser: function (uname, pword, callback) {
+            callback(false, { id: 1 });
+          },
+          generateToken: function (type, req, callback) {
+            req.oauth.client.clientId.should.equal('thom');
+            req.oauth.client.clientSecret.should.equal('nightworld');
+            req.user.id.should.equal(1);
+            callback(false, 'thommy');
+          },
+          saveAccessToken: function (token, clientId, expires, user, cb) {
+            token.should.equal('thommy');
+            cb();
+          }
+        },
+        grants: ['password']
+      });
+
+      request(app)
+        .post('/oauth/token')
+        .set('Content-Type', 'application/x-www-form-urlencoded')
+        .send(validBody)
+        .expect(200, /thommy/, done);
 
     });
 
@@ -283,7 +312,7 @@ describe('Grant', function() {
         .post('/oauth/token')
         .set('Content-Type', 'application/x-www-form-urlencoded')
         .send(validBody)
-        .expect(/"access_token":"thommy"/, 200, done);
+        .expect(200, /"access_token":"thommy"/, done);
 
     });
   });
@@ -302,7 +331,7 @@ describe('Grant', function() {
             callback(false, { id: 1 });
           },
           saveAccessToken: function (token, clientId, expires, user, cb) {
-            token.should.be.a('string');
+            token.should.be.instanceOf(String);
             token.should.have.length(40);
             clientId.should.equal('thom');
             user.id.should.equal(1);
@@ -337,7 +366,7 @@ describe('Grant', function() {
             cb();
           },
           saveRefreshToken: function (token, clientId, expires, user, cb) {
-            token.should.be.a('string');
+            token.should.be.instanceOf(String);
             token.should.have.length(40);
             clientId.should.equal('thom');
             user.id.should.equal(1);
@@ -382,11 +411,13 @@ describe('Grant', function() {
         .set('Content-Type', 'application/x-www-form-urlencoded')
         .send(validBody)
         .expect(200)
+        .expect('Cache-Control', 'no-store')
+        .expect('Pragma', 'no-cache')
         .end(function (err, res) {
           if (err) return done(err);
 
           res.body.should.have.keys(['access_token', 'token_type', 'expires_in']);
-          res.body.access_token.should.be.a('string');
+          res.body.access_token.should.be.instanceOf(String);
           res.body.access_token.should.have.length(40);
           res.body.token_type.should.equal('bearer');
           res.body.expires_in.should.equal(3600);
@@ -423,14 +454,16 @@ describe('Grant', function() {
         .set('Content-Type', 'application/x-www-form-urlencoded')
         .send(validBody)
         .expect(200)
+        .expect('Cache-Control', 'no-store')
+        .expect('Pragma', 'no-cache')
         .end(function (err, res) {
           if (err) return done(err);
 
           res.body.should.have.keys(['access_token', 'token_type', 'expires_in',
             'refresh_token']);
-          res.body.access_token.should.be.a('string');
+          res.body.access_token.should.be.instanceOf(String);
           res.body.access_token.should.have.length(40);
-          res.body.refresh_token.should.be.a('string');
+          res.body.refresh_token.should.be.instanceOf(String);
           res.body.refresh_token.should.have.length(40);
           res.body.token_type.should.equal('bearer');
           res.body.expires_in.should.equal(3600);
@@ -475,9 +508,9 @@ describe('Grant', function() {
           if (err) return done(err);
 
           res.body.should.have.keys(['access_token', 'refresh_token', 'token_type']);
-          res.body.access_token.should.be.a('string');
+          res.body.access_token.should.be.instanceOf(String);
           res.body.access_token.should.have.length(40);
-          res.body.refresh_token.should.be.a('string');
+          res.body.refresh_token.should.be.instanceOf(String);
           res.body.refresh_token.should.have.length(40);
           res.body.token_type.should.equal('bearer');
 
@@ -486,7 +519,7 @@ describe('Grant', function() {
 
     });
 
-    it('should continue after response if continueAfterResponse = true', function (done) {
+    it('should continue after success response if continueAfterResponse1 = true', function (done) {
       var app = bootstrap({
         model: {
           getClient: function (id, secret, callback) {
@@ -507,7 +540,7 @@ describe('Grant', function() {
       });
 
       var hit = false;
-      app.all('*', function (req, res, next) {
+      app.all('*', function (req, res, done) {
         hit = true;
       });
 
@@ -521,8 +554,8 @@ describe('Grant', function() {
           hit.should.equal(true);
           done();
         });
-
     });
+
   });
 
 });
