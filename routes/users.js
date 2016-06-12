@@ -2,13 +2,8 @@ var User = require('./../models').User;
 var errors = require('./../errors');
 
 module.exports.create = function(req, res, next) {
-  var user = {
-    email : req.body.email,
-    password: req.body.password
-  };
-  User.register(user, function(err, user) {
+  User.register(req.body, function(err, user) {
     if (err) {
-      console.log("Error creating user: ", err);
       return next(err);
     }
     res.send(user);

@@ -10,8 +10,6 @@ var User = models.User;
 
 app.set('env', process.env.NODE_ENV || 'development');
 app.set('port', process.env.PORT || 3000);
-// app.set('views', path.join(__dirname, 'views'));
-// app.set('view engine', 'jade');
 
 app.use(function (req, res, next) {
   //TODO: Move this harcoded code
@@ -52,8 +50,17 @@ app.use(app.router);
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.use(function(err, req, res, next) {
-  if (process.env.NODE_ENV !== 'test')
-    console.error('Error:', err);
+  if (process.env.NODE_ENV !== 'test'){
+      console.error('Error:', err);
+  }
+  //TODO Unify the error message format
+  if (err.code && err.name && err.message){
+    res.status(500).send({
+      code: err.code,
+      name: err.name,
+      message: err.message
+    });
+  }
 
   if (middleware.isValidationError(err)) {
     res.status(400);
